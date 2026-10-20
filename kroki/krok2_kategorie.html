@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Krok 2 – kategorie wydatków</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #eef2f0; --surface: #ffffff; --ink: #1c2b3a; --muted: #5b6b78;
+  --line: #d3dcd8; --accent: #1f6f6b; --ok: #1e7a46; --bad: #b3261e; --minus: #8a3b12;
+  --warn: #9a6a00; --warn-bg: #fdf3d8;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #121a20; --surface: #1a252d; --ink: #e3ebe8; --muted: #9aabb5;
+    --line: #2c3a43; --accent: #5cc0b8; --ok: #6fd39a; --bad: #ff8a80; --minus: #f0a070;
+    --warn: #f2c96b; --warn-bg: #3a3218;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121a20; --surface: #1a252d; --ink: #e3ebe8; --muted: #9aabb5;
+  --line: #2c3a43; --accent: #5cc0b8; --ok: #6fd39a; --bad: #ff8a80; --minus: #f0a070;
+  --warn: #f2c96b; --warn-bg: #3a3218;
+}
+*, *::before, *::after { box-sizing: inherit; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.5;
+}
+main { max-width: 960px; margin: 0 auto; padding: 2rem 1rem 3rem; }
+h1 { font-size: 1.6rem; font-weight: 600; margin: 0 0 .25rem; }
+h2 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 .5rem; }
+p.lead, p.note { color: var(--muted); margin: 0 0 1.25rem; max-width: 65ch; }
+.drop { display: block; border: 2px dashed var(--line); border-radius: 10px; background: var(--surface);
+  padding: 1.5rem; text-align: center; cursor: pointer; }
+.drop:hover, .drop:focus-within { border-color: var(--accent); }
+.drop input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.drop strong { color: var(--accent); }
+#error { color: var(--bad); margin-top: 1rem; font-weight: 500; }
+.check { padding: .9rem 1rem; border-left: 4px solid var(--ok); background: var(--surface); margin: 1.25rem 0; }
+.check.warn { border-color: var(--warn); }
+.check.bad { border-color: var(--bad); }
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); }
+.table-wrap.tall { max-height: 60vh; overflow-y: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { padding: .45rem .7rem; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+th { position: sticky; top: 0; background: var(--surface); color: var(--muted); font-weight: 500; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.neg { color: var(--minus); }
+tr.total td { font-weight: 600; border-top: 2px solid var(--line); }
+tr.group td { color: var(--muted); font-size: .85rem; padding-top: 1rem; }
+tr.unknown td { background: var(--warn-bg); }
+select { font: inherit; font-size: .85rem; color: var(--ink); background: var(--surface); border: 1px solid var(--warn); border-radius: 4px; padding: .1rem .3rem; }
+.rule { font-size: .8rem; color: var(--muted); }
+.filters { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: .6rem; }
+.filters select { border-color: var(--line); }
+details { background: var(--surface); border: 1px solid var(--line); padding: .6rem 1rem; }
+summary { cursor: pointer; font-weight: 500; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Krok 2: kategorie wydatków</h1>
+  <p class="lead">Bank przypisuje każdej operacji „Bez kategorii”. Ta strona rozpoznaje kategorię po opisie, odróżnia wydatki od przelewów własnych i wypłat gotówki, a zwroty odejmuje od zakupów.</p>
+
+  <label class="drop">
+    <input type="file" id="file" accept=".csv,text/csv">
+    <strong>Wybierz plik CSV</strong> albo upuść go tutaj
+  </label>
+  <p style="margin:.75rem 0 0"><button type="button" id="sampleBtn" style="font:inherit;font-size:.9rem;color:var(--accent);background:none;border:1px solid var(--accent);border-radius:6px;padding:.35rem .75rem;cursor:pointer">Wczytaj przykładowe dane (fikcyjne)</button></p>
+  <div id="error" role="alert"></div>
+
+  <section id="result" hidden>
+    <div class="check" id="check"></div>
+
+    <h2>Wydatki netto według kategorii</h2>
+    <p class="note">Zwroty są już odjęte od kategorii zakupu. Przelewy własne i gotówka są pokazane osobno, bo to nie są wydatki, tylko przesunięcie pieniędzy.</p>
+    <div class="table-wrap"><table id="summary"></table></div>
+
+    <h2>Operacje</h2>
+    <div class="filters">
+      <label>Kategoria: <select id="fCat"><option value="">wszystkie</option></select></label>
+      <label>Miesiąc: <select id="fMonth"><option value="">wszystkie</option></select></label>
+    </div>
+    <div class="table-wrap tall">
+      <table>
+        <thead><tr><th>Data</th><th>Opis operacji</th><th class="num">Kwota</th><th>Rodzaj</th><th>Kategoria</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+
+    <h2>Reguły</h2>
+    <details>
+      <summary>Pokaż reguły rozpoznawania (sprawdzane od góry, wygrywa pierwsza pasująca)</summary>
+      <div class="table-wrap" style="border:0;margin-top:.6rem"><table id="rules"></table></div>
+    </details>
+  </section>
+</main>
+
+<script>
+// ---------- KROK 1: wczytanie (bez zmian) ----------
+function detectDelimiter(text) {
+  const header = text.split(/\r?\n/, 1)[0];
+  return (header.match(/;/g) || []).length >= (header.match(/,/g) || []).length ? ";" : ",";
+}
+function parseCSV(text, sep) {
+  const rows = []; let row = [], field = "", inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQuotes = false; }
+      else field += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === sep) { row.push(field); field = ""; }
+    else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+    else if (c !== "\r") field += c;
+  }
+  if (field !== "" || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+function toGrosze(s) {
+  const m = s.replace(/[\s ]/g, "").match(/^(-?)(\d+),(\d{2})PLN$/);
+  if (!m) throw new Error(`Nie rozumiem kwoty: "${s}"`);
+  const v = Number(m[2]) * 100 + Number(m[3]);
+  return m[1] ? -v : v;
+}
+function fmt(gr) {
+  const sign = gr < 0 ? "-" : "";
+  const zl = Math.floor(Math.abs(gr) / 100).toLocaleString("pl-PL");
+  return `${sign}${zl},${String(Math.abs(gr) % 100).padStart(2, "0")} PLN`;
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function decode(buf) {
+  let text;
+  try { text = new TextDecoder("utf-8", { fatal: true }).decode(buf); }
+  catch { text = new TextDecoder("windows-1250").decode(buf); }
+  text = text.replace(/^﻿/, "");
+  const all = parseCSV(text, detectDelimiter(text)).filter(r => r.some(f => f.trim() !== ""));
+  if (!all.length || all[0][0].trim() !== "#Data operacji")
+    throw new Error("To nie wygląda na wyciąg: pierwszy wiersz powinien zaczynać się od „#Data operacji”.");
+  return all.slice(1).map((r, i) => {
+    if (r.length < 6) throw new Error(`Wiersz ${i + 2} ma za mało pól (${r.length}).`);
+    return { date: r[0], desc: r[1], amount: toGrosze(r[4]), balance: toGrosze(r[5]) };
+  });
+}
+
+// ---------- KROK 2: kategorie ----------
+// Rodzaj mówi, CZYM jest operacja (wydatek czy przesunięcie pieniędzy).
+// Kategoria mówi, NA CO poszły pieniądze. Kolejność reguł ma znaczenie.
+const RULES = [
+  // [słowo w opisie, rodzaj, kategoria]
+  ["PRZELEW WŁASNY",        "transfer własny", "Transfer własny"],
+  ["WYPŁATA Z BANKOMATU",   "wypłata gotówki", "Gotówka"],
+  ["WYNAGRODZENIE",         "wpływ",           "Wynagrodzenie"],
+  ["CZYNSZ",                "rachunek",        "Mieszkanie"],
+  ["ENERGIA",               "rachunek",        "Media"],
+  ["INTERNET",              "rachunek",        "Internet i telefon"],
+  ["SIEĆ KOMÓRKOWA",        "rachunek",        "Internet i telefon"],
+  ["NETFLIX",               "subskrypcja",     "Subskrypcje"],
+  ["SPOTIFY",               "subskrypcja",     "Subskrypcje"],
+  ["GOOGLE ONE",            "subskrypcja",     "Subskrypcje"],
+  ["UBER EATS",             "zakup",           "Jedzenie na mieście"],   // przed ogólnym "UBER"!
+  ["PYSZNE.PL",             "zakup",           "Jedzenie na mieście"],
+  ["BAR MLECZNY",           "zakup",           "Jedzenie na mieście"],
+  ["PIZZERIA",              "zakup",           "Jedzenie na mieście"],
+  ["SUSHI",                 "zakup",           "Jedzenie na mieście"],
+  ["KEBAB",                 "zakup",           "Jedzenie na mieście"],
+  ["BISTRO",                "zakup",           "Jedzenie na mieście"],
+  ["KAWIARNIA",             "zakup",           "Jedzenie na mieście"],
+  ["BIEDRONKA",             "zakup",           "Spożywcze"],
+  ["LIDL",                  "zakup",           "Spożywcze"],
+  ["ŻABKA",                 "zakup",           "Spożywcze"],
+  ["CARREFOUR",             "zakup",           "Spożywcze"],
+  ["ZTM",                   "zakup",           "Transport"],
+  ["STACJA PALIW",          "zakup",           "Transport"],
+  ["ROSSMANN",              "zakup",           "Drogeria"],
+  ["APTEKA",                "zakup",           "Zdrowie"],
+  ["EMPIK",                 "zakup",           "Rozrywka"],
+  ["ZALANDO",               "zakup",           "Odzież"],
+  ["ALLEGRO",               "zakup",           "Zakupy online"],
+  ["MEDIA EXPERT",          "zakup",           "Elektronika"],
+];
+const UNKNOWN = "Do wyjaśnienia";
+const SPENDING = new Set(["zakup", "rachunek", "subskrypcja", "zwrot"]);
+const CATEGORIES = [...new Set(RULES.map(r => r[2]))].filter(c => !["Transfer własny", "Gotówka", "Wynagrodzenie"].includes(c));
+
+function categorize(desc, amount) {
+  const d = desc.toUpperCase();
+  // Zwrot: dostaje kategorię zakupu, którego dotyczy, i pomniejsza ją.
+  if (d.startsWith("ZWROT ")) {
+    const base = categorize(desc.slice(6), -amount);
+    return { kind: "zwrot", cat: base.cat, rule: `ZWROT + ${base.rule}` };
+  }
+  for (const [word, kind, cat] of RULES)
+    if (d.includes(word)) return { kind, cat, rule: word };
+  // Nic nie pasuje: nie zgadujemy, tylko oznaczamy do wyjaśnienia.
+  return { kind: amount > 0 ? "wpływ" : "zakup", cat: UNKNOWN, rule: "brak reguły" };
+}
+
+// ---------- widok ----------
+let OPS = [];
+function handle(file) {
+  const errBox = document.getElementById("error");
+  errBox.textContent = ""; document.getElementById("result").hidden = true;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      OPS = decode(reader.result).map(o => ({ ...o, ...categorize(o.desc, o.amount), month: o.date.slice(0, 7) }));
+      const months = [...new Set(OPS.map(o => o.month))].sort();
+      document.getElementById("fMonth").innerHTML = '<option value="">wszystkie</option>' + months.map(m => `<option>${m}</option>`).join("");
+      const cats = [...new Set(OPS.map(o => o.cat))].sort((a, b) => a.localeCompare(b, "pl"));
+      document.getElementById("fCat").innerHTML = '<option value="">wszystkie</option>' + cats.map(c => `<option>${esc(c)}</option>`).join("");
+      renderRules(); render();
+      document.getElementById("result").hidden = false;
+    } catch (e) { errBox.textContent = e.message; }
+  };
+  reader.onerror = () => { errBox.textContent = "Nie udało się odczytać pliku."; };
+  reader.readAsArrayBuffer(file);
+}
+
+function summarize(ops) {
+  const months = [...new Set(ops.map(o => o.month))].sort();
+  const spend = {}, other = { "Wpływy": {}, "Transfery własne (saldo)": {}, "Wypłaty gotówki": {} };
+  for (const o of ops) {
+    if (SPENDING.has(o.kind)) {
+      spend[o.cat] ??= {}; spend[o.cat][o.month] = (spend[o.cat][o.month] || 0) - o.amount;
+    } else if (o.kind === "wpływ") other["Wpływy"][o.month] = (other["Wpływy"][o.month] || 0) + o.amount;
+    else if (o.kind === "transfer własny") other["Transfery własne (saldo)"][o.month] = (other["Transfery własne (saldo)"][o.month] || 0) + o.amount;
+    else if (o.kind === "wypłata gotówki") other["Wypłaty gotówki"][o.month] = (other["Wypłaty gotówki"][o.month] || 0) - o.amount;
+  }
+  return { months, spend, other };
+}
+
+function render() {
+  const { months, spend, other } = summarize(OPS);
+  const total = c => months.reduce((s, m) => s + (spend[c][m] || 0), 0);
+  const cats = Object.keys(spend).sort((a, b) => total(b) - total(a));
+  const cell = v => `<td class="num">${v ? fmt(v) : "–"}</td>`;
+  const sumRow = m => cats.reduce((s, c) => s + (spend[c][m] || 0), 0);
+  document.getElementById("summary").innerHTML =
+    `<thead><tr><th>Kategoria</th>${months.map(m => `<th class="num">${m}</th>`).join("")}<th class="num">Razem</th></tr></thead><tbody>` +
+    cats.map(c => `<tr class="${c === UNKNOWN ? "unknown" : ""}"><td>${esc(c)}</td>${months.map(m => cell(spend[c][m])).join("")}${cell(total(c))}</tr>`).join("") +
+    `<tr class="total"><td>Wydatki razem</td>${months.map(m => cell(sumRow(m))).join("")}${cell(months.reduce((s, m) => s + sumRow(m), 0))}</tr>` +
+    `<tr class="group"><td colspan="${months.length + 2}">Poza wydatkami</td></tr>` +
+    Object.entries(other).map(([k, v]) => `<tr><td>${k}</td>${months.map(m => cell(v[m])).join("")}${cell(months.reduce((s, m) => s + (v[m] || 0), 0))}</tr>`).join("") +
+    `</tbody>`;
+
+  // Kontrola: wpływy − wydatki + transfery − gotówka musi dać zmianę salda.
+  const oldest = OPS[OPS.length - 1];
+  const change = OPS[0].balance - (oldest.balance - oldest.amount);
+  const all = m => (other["Wpływy"][m] || 0) - sumRow(m) + (other["Transfery własne (saldo)"][m] || 0) - (other["Wypłaty gotówki"][m] || 0);
+  const computed = months.reduce((s, m) => s + all(m), 0);
+  const unknown = OPS.filter(o => o.cat === UNKNOWN);
+  const check = document.getElementById("check");
+  const okSum = computed === change;
+  check.className = "check" + (!okSum ? " bad" : unknown.length ? " warn" : "");
+  check.innerHTML =
+    `Rozpoznano ${OPS.length - unknown.length} z ${OPS.length} operacji. ` +
+    (unknown.length ? `<b>${unknown.length} do wyjaśnienia</b> – wybierz dla nich kategorię w tabeli operacji (żółte wiersze). ` : "") +
+    (okSum ? `Bilans się zgadza: wpływy − wydatki ± transfery − gotówka = zmiana salda (${fmt(change)}).`
+           : `Bilans się NIE zgadza: wyszło ${fmt(computed)}, a saldo zmieniło się o ${fmt(change)}.`);
+
+  const fc = document.getElementById("fCat").value, fm = document.getElementById("fMonth").value;
+  document.getElementById("rows").innerHTML = OPS.map((o, i) => ({ o, i }))
+    .filter(({ o }) => (!fc || o.cat === fc) && (!fm || o.month === fm))
+    .map(({ o, i }) => `
+    <tr class="${o.cat === UNKNOWN || o.manual ? "unknown" : ""}">
+      <td>${o.date}</td>
+      <td>${esc(o.desc)}<div class="rule">reguła: ${esc(o.manual ? "wybrane ręcznie" : o.rule)}</div></td>
+      <td class="num ${o.amount < 0 ? "neg" : ""}">${fmt(o.amount)}</td>
+      <td>${o.kind}</td>
+      <td>${o.cat === UNKNOWN || o.manual
+        ? `<select data-i="${i}" aria-label="Kategoria dla ${esc(o.desc)}">${[UNKNOWN, ...CATEGORIES].map(c => `<option${c === o.cat ? " selected" : ""}>${esc(c)}</option>`).join("")}</select>`
+        : esc(o.cat)}</td>
+    </tr>`).join("");
+}
+
+function renderRules() {
+  document.getElementById("rules").innerHTML =
+    `<thead><tr><th>Jeśli opis zawiera</th><th>Rodzaj</th><th>Kategoria</th><th class="num">Trafień</th></tr></thead><tbody>` +
+    RULES.map(([w, k, c]) => `<tr><td>${esc(w)}</td><td>${k}</td><td>${esc(c)}</td><td class="num">${OPS.filter(o => o.rule.endsWith(w)).length}</td></tr>`).join("") +
+    `<tr><td>„ZWROT …” na początku</td><td>zwrot</td><td>kategoria zakupu</td><td class="num">${OPS.filter(o => o.kind === "zwrot").length}</td></tr>` +
+    `<tr class="unknown"><td>nic nie pasuje</td><td>zakup / wpływ</td><td>${UNKNOWN}</td><td class="num">${OPS.filter(o => o.rule === "brak reguły").length}</td></tr></tbody>`;
+}
+
+document.getElementById("rows").addEventListener("change", e => {
+  const i = e.target.dataset.i; if (i === undefined) return;
+  OPS[i].cat = e.target.value; OPS[i].manual = e.target.value !== UNKNOWN;
+  render();
+});
+document.getElementById("fCat").addEventListener("change", render);
+document.getElementById("fMonth").addEventListener("change", render);
+const input = document.getElementById("file");
+input.addEventListener("change", () => input.files[0] && handle(input.files[0]));
+const drop = document.querySelector(".drop");
+drop.addEventListener("dragover", e => e.preventDefault());
+drop.addEventListener("drop", e => { e.preventDefault(); e.dataTransfer.files[0] && handle(e.dataTransfer.files[0]); });
+// Na GitHub Pages: przycisk wczytuje fikcyjny wyciąg z folderu dane/.
+document.getElementById("sampleBtn").addEventListener("click", async () => {
+  try {
+    const res = await fetch("../dane/FIKCYJNE_historia_konta_2026-07_do_2026-09.csv");
+    if (!res.ok) throw new Error();
+    handle(new File([await res.arrayBuffer()], "FIKCYJNE_historia_konta_2026-07_do_2026-09.csv"));
+  } catch {
+    document.getElementById("error").textContent = "Nie udało się pobrać przykładowych danych. Wybierz plik CSV ręcznie.";
+  }
+});
+</script>
+</body>
+</html>
