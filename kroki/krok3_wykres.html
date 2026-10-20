@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Krok 3 – wydatki miesiąc po miesiącu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #eef2f0; --surface: #ffffff; --ink: #1c2b3a; --muted: #5b6b78; --faint: #8a969e;
+  --line: #d3dcd8; --grid: #e6ebe8; --accent: #1f6f6b; --ok: #1e7a46; --bad: #b3261e; --minus: #8a3b12;
+  --warn: #9a6a00; --warn-bg: #fdf3d8; --other: #b9c2c7; --dim: #dfe4e2;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #121a20; --surface: #1a252d; --ink: #e3ebe8; --muted: #9aabb5; --faint: #7d8c95;
+    --line: #2c3a43; --grid: #24313a; --accent: #5cc0b8; --ok: #6fd39a; --bad: #ff8a80; --minus: #f0a070;
+    --warn: #f2c96b; --warn-bg: #3a3218; --other: #5d6b74; --dim: #2b3740;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121a20; --surface: #1a252d; --ink: #e3ebe8; --muted: #9aabb5; --faint: #7d8c95;
+  --line: #2c3a43; --grid: #24313a; --accent: #5cc0b8; --ok: #6fd39a; --bad: #ff8a80; --minus: #f0a070;
+  --warn: #f2c96b; --warn-bg: #3a3218; --other: #5d6b74; --dim: #2b3740;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300;
+}
+*, *::before, *::after { box-sizing: inherit; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.5; }
+main { max-width: 960px; margin: 0 auto; padding: 2rem 1rem 3rem; }
+h1 { font-size: 1.6rem; font-weight: 600; margin: 0 0 .25rem; }
+h2 { font-size: 1.15rem; font-weight: 600; margin: 0 0 .25rem; }
+p.lead, p.note { color: var(--muted); margin: 0 0 1.25rem; max-width: 65ch; }
+.drop { display: block; border: 2px dashed var(--line); border-radius: 10px; background: var(--surface);
+  padding: 1.5rem; text-align: center; cursor: pointer; }
+.drop:hover, .drop:focus-within { border-color: var(--accent); }
+.drop input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.drop strong { color: var(--accent); }
+#error { color: var(--bad); margin-top: 1rem; font-weight: 500; }
+.panel { background: var(--surface); border: 1px solid var(--line); padding: 1.25rem; margin-top: 1.5rem; }
+.legend { display: flex; flex-wrap: wrap; gap: .35rem .5rem; margin: .75rem 0 .25rem; padding: 0; list-style: none; }
+.legend button { font: inherit; font-size: .85rem; color: var(--ink); background: none; border: 1px solid var(--line);
+  border-radius: 999px; padding: .15rem .65rem .15rem .45rem; cursor: pointer; display: inline-flex; align-items: center; gap: .4rem; }
+.legend button[aria-pressed="true"] { border-color: var(--ink); font-weight: 600; }
+.legend button:focus-visible, .seg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sw { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.chart-wrap { position: relative; }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+.axis { fill: var(--faint); font-size: 12px; font-variant-numeric: tabular-nums; }
+.mlabel { fill: var(--muted); font-size: 13px; }
+.total { fill: var(--ink); font-size: 14px; font-weight: 600; }
+.delta { fill: var(--muted); font-size: 12px; }
+.seg { cursor: pointer; transition: opacity .15s; }
+.seg.dimmed { opacity: .18; }
+.seg.selected { stroke: var(--ink); stroke-width: 2; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--surface); font-size: .8rem;
+  padding: .35rem .55rem; border-radius: 4px; white-space: nowrap; transform: translate(-50%, calc(-100% - 8px)); }
+.hint { color: var(--muted); font-size: .85rem; margin: .25rem 0 0; }
+.check { padding: .8rem 1rem; border-left: 4px solid var(--ok); background: var(--bg); margin: .75rem 0; }
+.check.bad { border-color: var(--bad); }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { padding: .4rem .65rem; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+th { color: var(--muted); font-weight: 500; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.neg { color: var(--minus); }
+tr.sum td { font-weight: 600; border-top: 2px solid var(--line); border-bottom: 0; }
+details summary { cursor: pointer; font-weight: 500; }
+[hidden] { display: none !important; }
+@media (prefers-reduced-motion: reduce) { .seg { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Krok 3: wydatki miesiąc po miesiącu</h1>
+  <p class="lead">Każdy słupek to wydatki netto w jednym miesiącu, podzielone na kategorie. Kliknij kategorię w legendzie, żeby ją wyróżnić, albo kawałek słupka, żeby zobaczyć jego transakcje i sprawdzić sumę.</p>
+
+  <label class="drop">
+    <input type="file" id="file" accept=".csv,text/csv">
+    <strong>Wybierz plik CSV</strong> albo upuść go tutaj
+  </label>
+  <p style="margin:.75rem 0 0"><button type="button" id="sampleBtn" style="font:inherit;font-size:.9rem;color:var(--accent);background:none;border:1px solid var(--accent);border-radius:6px;padding:.35rem .75rem;cursor:pointer">Wczytaj przykładowe dane (fikcyjne)</button></p>
+  <div id="error" role="alert"></div>
+
+  <section id="result" hidden>
+    <div class="panel">
+      <h2 id="chartTitle">Wydatki netto</h2>
+      <p class="note" style="margin:0">Bez przelewów własnych i wypłat gotówki. Zwroty odjęte od kategorii zakupu.</p>
+      <ul class="legend" id="legend"></ul>
+      <div class="chart-wrap">
+        <svg id="chart" viewBox="0 0 640 380" role="img" aria-labelledby="chartTitle"></svg>
+        <div class="tip" id="tip" hidden></div>
+      </div>
+      <p class="hint" id="hint">Kliknij kawałek słupka, żeby sprawdzić jego sumę w transakcjach.</p>
+    </div>
+
+    <div class="panel" id="drill" hidden>
+      <h2 id="drillTitle"></h2>
+      <div class="check" id="drillCheck"></div>
+      <div class="table-wrap"><table id="drillTable"></table></div>
+    </div>
+
+    <div class="panel">
+      <details>
+        <summary>Dane wykresu w tabeli</summary>
+        <div class="table-wrap" style="margin-top:.75rem"><table id="dataTable"></table></div>
+      </details>
+    </div>
+  </section>
+</main>
+
+<script>
+// ---------- KROK 1: wczytanie ----------
+function detectDelimiter(text) {
+  const header = text.split(/\r?\n/, 1)[0];
+  return (header.match(/;/g) || []).length >= (header.match(/,/g) || []).length ? ";" : ",";
+}
+function parseCSV(text, sep) {
+  const rows = []; let row = [], field = "", inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQuotes = false; }
+      else field += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === sep) { row.push(field); field = ""; }
+    else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+    else if (c !== "\r") field += c;
+  }
+  if (field !== "" || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+function toGrosze(s) {
+  const m = s.replace(/[\s ]/g, "").match(/^(-?)(\d+),(\d{2})PLN$/);
+  if (!m) throw new Error(`Nie rozumiem kwoty: "${s}"`);
+  const v = Number(m[2]) * 100 + Number(m[3]);
+  return m[1] ? -v : v;
+}
+function fmt(gr) {
+  const sign = gr < 0 ? "-" : "";
+  const zl = Math.floor(Math.abs(gr) / 100).toLocaleString("pl-PL");
+  return `${sign}${zl},${String(Math.abs(gr) % 100).padStart(2, "0")} PLN`;
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function decode(buf) {
+  let text;
+  try { text = new TextDecoder("utf-8", { fatal: true }).decode(buf); }
+  catch { text = new TextDecoder("windows-1250").decode(buf); }
+  text = text.replace(/^﻿/, "");
+  const all = parseCSV(text, detectDelimiter(text)).filter(r => r.some(f => f.trim() !== ""));
+  if (!all.length || all[0][0].trim() !== "#Data operacji")
+    throw new Error("To nie wygląda na wyciąg: pierwszy wiersz powinien zaczynać się od „#Data operacji”.");
+  return all.slice(1).map((r, i) => {
+    if (r.length < 6) throw new Error(`Wiersz ${i + 2} ma za mało pól (${r.length}).`);
+    return { date: r[0], desc: r[1], amount: toGrosze(r[4]), balance: toGrosze(r[5]) };
+  });
+}
+
+// ---------- KROK 2: kategorie ----------
+const RULES = [
+  ["PRZELEW WŁASNY", "transfer własny", "Transfer własny"],
+  ["WYPŁATA Z BANKOMATU", "wypłata gotówki", "Gotówka"],
+  ["WYNAGRODZENIE", "wpływ", "Wynagrodzenie"],
+  ["CZYNSZ", "rachunek", "Mieszkanie"],
+  ["ENERGIA", "rachunek", "Media"],
+  ["INTERNET", "rachunek", "Internet i telefon"],
+  ["SIEĆ KOMÓRKOWA", "rachunek", "Internet i telefon"],
+  ["NETFLIX", "subskrypcja", "Subskrypcje"],
+  ["SPOTIFY", "subskrypcja", "Subskrypcje"],
+  ["GOOGLE ONE", "subskrypcja", "Subskrypcje"],
+  ["UBER EATS", "zakup", "Jedzenie na mieście"],
+  ["PYSZNE.PL", "zakup", "Jedzenie na mieście"],
+  ["BAR MLECZNY", "zakup", "Jedzenie na mieście"],
+  ["PIZZERIA", "zakup", "Jedzenie na mieście"],
+  ["SUSHI", "zakup", "Jedzenie na mieście"],
+  ["KEBAB", "zakup", "Jedzenie na mieście"],
+  ["BISTRO", "zakup", "Jedzenie na mieście"],
+  ["KAWIARNIA", "zakup", "Jedzenie na mieście"],
+  ["BIEDRONKA", "zakup", "Spożywcze"],
+  ["LIDL", "zakup", "Spożywcze"],
+  ["ŻABKA", "zakup", "Spożywcze"],
+  ["CARREFOUR", "zakup", "Spożywcze"],
+  ["ZTM", "zakup", "Transport"],
+  ["STACJA PALIW", "zakup", "Transport"],
+  ["ROSSMANN", "zakup", "Drogeria"],
+  ["APTEKA", "zakup", "Zdrowie"],
+  ["EMPIK", "zakup", "Rozrywka"],
+  ["ZALANDO", "zakup", "Odzież"],
+  ["ALLEGRO", "zakup", "Zakupy online"],
+  ["MEDIA EXPERT", "zakup", "Elektronika"],
+];
+const UNKNOWN = "Do wyjaśnienia";
+const SPENDING = new Set(["zakup", "rachunek", "subskrypcja", "zwrot"]);
+function categorize(desc, amount) {
+  const d = desc.toUpperCase();
+  if (d.startsWith("ZWROT ")) {
+    const base = categorize(desc.slice(6), -amount);
+    return { kind: "zwrot", cat: base.cat, rule: `ZWROT + ${base.rule}` };
+  }
+  for (const [word, kind, cat] of RULES) if (d.includes(word)) return { kind, cat, rule: word };
+  return { kind: amount > 0 ? "wpływ" : "zakup", cat: UNKNOWN, rule: "brak reguły" };
+}
+
+// ---------- KROK 3: wykres ----------
+// Pokazujemy 6 największych kategorii w kolorach, resztę jako szare „Pozostałe”.
+// Kolor przypisany jest do kategorii na stałe, a nie do jej miejsca w rankingu.
+const TOP_N = 6, OTHER = "Pozostałe";
+const COLORS = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--s4)", "var(--s5)", "var(--s6)"];
+let OPS = [], DATA = null, focus = null, selected = null;
+
+function buildData(ops) {
+  const spend = ops.filter(o => SPENDING.has(o.kind));
+  const months = [...new Set(spend.map(o => o.month))].sort();
+  const totalByCat = {};
+  for (const o of spend) totalByCat[o.cat] = (totalByCat[o.cat] || 0) - o.amount;
+  const ranked = Object.keys(totalByCat).sort((a, b) => totalByCat[b] - totalByCat[a]);
+  const top = ranked.slice(0, TOP_N);
+  const group = c => top.includes(c) ? c : OTHER;
+  const series = [...top, ...(ranked.length > TOP_N ? [OTHER] : [])];
+  const value = {};                              // value[month][series] w groszach
+  for (const m of months) { value[m] = {}; for (const s of series) value[m][s] = 0; }
+  for (const o of spend) value[o.month][group(o.cat)] -= o.amount;
+  const color = s => s === OTHER ? "var(--other)" : COLORS[top.indexOf(s)];
+  const members = s => s === OTHER ? ranked.slice(TOP_N) : [s];
+  return { months, series, value, color, group, members, spend };
+}
+
+const MONTH_NAMES = ["styczeń", "luty", "marzec", "kwiecień", "maj", "czerwiec", "lipiec", "sierpień", "wrzesień", "październik", "listopad", "grudzień"];
+const monthName = m => `${MONTH_NAMES[Number(m.slice(5)) - 1]} ${m.slice(0, 4)}`;
+
+function niceMax(v) {
+  const step = 1000_00;                          // co 1000 zł
+  return Math.ceil(v / step) * step;
+}
+
+function renderChart() {
+  const { months, series, value, color } = DATA;
+  // Rysujemy w rzeczywistej szerokości kontenera, żeby napisy nie malały na telefonie.
+  const W = Math.max(300, Math.min(760, Math.round(chart.getBoundingClientRect().width) || 640));
+  const H = W < 500 ? 340 : 380, L = 48, R = 8, T = 44, B = 40;
+  chart.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const totals = months.map(m => series.reduce((s, k) => s + value[m][k], 0));
+  const max = niceMax(Math.max(...totals));
+  const y = v => T + (H - T - B) * (1 - v / max);
+  const band = (W - L - R) / months.length, bw = Math.min(88, band * .5);
+  let svg = "";
+  for (let t = 0; t <= max; t += 1000_00) {
+    svg += `<line x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}" stroke="var(--grid)" stroke-width="1"/>` +
+           `<text class="axis" x="${L - 8}" y="${y(t) + 4}" text-anchor="end">${t / 100_000} tys.</text>`;
+  }
+  months.forEach((m, i) => {
+    const x = L + band * i + (band - bw) / 2;
+    let acc = 0;
+    const visible = series.filter(s => value[m][s] > 0);
+    visible.forEach((s, j) => {
+      const v = value[m][s], y0 = y(acc), y1 = y(acc + v);
+      const h = Math.max(0, y0 - y1 - 2);        // 2 px przerwy między kawałkami
+      const top = j === visible.length - 1, r = top ? Math.min(4, h / 2) : 0;
+      const yTop = y1, d = top
+        ? `M${x},${yTop + h} V${yTop + r} Q${x},${yTop} ${x + r},${yTop} H${x + bw - r} Q${x + bw},${yTop} ${x + bw},${yTop + r} V${yTop + h} Z`
+        : `M${x},${yTop} H${x + bw} V${yTop + h} H${x} Z`;
+      const cls = ["seg", focus && focus !== s ? "dimmed" : "", selected && selected.m === m && selected.s === s ? "selected" : ""].join(" ");
+      svg += `<path class="${cls}" d="${d}" fill="${color(s)}" data-m="${m}" data-s="${esc(s)}" tabindex="0" role="button"
+               aria-label="${esc(s)}, ${monthName(m)}: ${fmt(v)}"></path>`;
+      acc += v;
+    });
+    const cx = x + bw / 2;
+    const totalText = band > 140 ? fmt(totals[i]) : fmt(totals[i]).replace(" PLN", " zł");
+    svg += `<text class="total" x="${cx}" y="${y(totals[i]) - 10}" text-anchor="middle"${band > 140 ? "" : ' style="font-size:12.5px"'}>${totalText}</text>`;
+    svg += `<text class="mlabel" x="${cx}" y="${H - B + 22}" text-anchor="middle">${band > 140 ? monthName(m) : monthName(m).split(" ")[0]}</text>`;
+    if (i > 0) {
+      const d = totals[i] - totals[i - 1];
+      svg += `<text class="delta" x="${cx}" y="${y(totals[i]) - 28}" text-anchor="middle">${d >= 0 ? "+" : ""}${fmt(d)}${band > 170 ? " vs poprz." : ""}</text>`;
+    }
+  });
+  svg += `<line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="var(--line)" stroke-width="1"/>`;
+  document.getElementById("chart").innerHTML = svg;
+
+  document.getElementById("legend").innerHTML = series.map(s => `
+    <li><button type="button" data-s="${esc(s)}" aria-pressed="${focus === s}">
+      <span class="sw" style="background:${color(s)}"></span>${esc(s)}</button></li>`).join("");
+
+  document.getElementById("dataTable").innerHTML =
+    `<thead><tr><th>Kategoria</th>${months.map(m => `<th class="num">${monthName(m)}</th>`).join("")}</tr></thead><tbody>` +
+    series.map(s => `<tr><td>${esc(s)}</td>${months.map(m => `<td class="num">${fmt(value[m][s])}</td>`).join("")}</tr>`).join("") +
+    `<tr class="sum"><td>Razem</td>${totals.map(t => `<td class="num">${fmt(t)}</td>`).join("")}</tr></tbody>`;
+}
+
+// Kontrola z zadania: suma kawałka wykresu = suma jego transakcji.
+// Liczymy ją DRUGI raz, niezależnie: wprost z listy transakcji, nie z danych wykresu.
+function showDrill(m, s) {
+  selected = { m, s };
+  const members = DATA.members(s);
+  const tx = OPS.filter(o => o.month === m && SPENDING.has(o.kind) && members.includes(o.cat));
+  const txSum = tx.reduce((sum, o) => sum - o.amount, 0);
+  const barValue = DATA.value[m][s];
+  document.getElementById("drill").hidden = false;
+  document.getElementById("drillTitle").textContent = `${s}, ${monthName(m)}: ${tx.length} transakcji`;
+  const ok = txSum === barValue;
+  const check = document.getElementById("drillCheck");
+  check.className = "check" + (ok ? "" : " bad");
+  check.textContent = ok
+    ? `Suma się zgadza: wartość na wykresie ${fmt(barValue)} = suma ${tx.length} transakcji poniżej ${fmt(txSum)}.`
+    : `Suma się NIE zgadza: wykres pokazuje ${fmt(barValue)}, a transakcje dają ${fmt(txSum)}.`;
+  document.getElementById("drillTable").innerHTML =
+    `<thead><tr><th>Data</th><th>Opis</th>${s === OTHER ? "<th>Kategoria</th>" : ""}<th>Rodzaj</th><th class="num">Kwota</th></tr></thead><tbody>` +
+    tx.map(o => `<tr><td>${o.date}</td><td>${esc(o.desc)}</td>${s === OTHER ? `<td>${esc(o.cat)}</td>` : ""}<td>${o.kind}</td>
+      <td class="num ${o.amount < 0 ? "neg" : ""}">${fmt(o.amount)}</td></tr>`).join("") +
+    `<tr class="sum"><td colspan="${s === OTHER ? 4 : 3}">Suma wydatków netto (zwroty odjęte)</td><td class="num">${fmt(txSum)}</td></tr></tbody>`;
+  renderChart();
+  document.getElementById("drill").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest" });
+}
+
+// ---------- obsługa ----------
+function handle(file) {
+  const errBox = document.getElementById("error");
+  errBox.textContent = ""; document.getElementById("result").hidden = true;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      OPS = decode(reader.result).map(o => ({ ...o, ...categorize(o.desc, o.amount), month: o.date.slice(0, 7) }));
+      DATA = buildData(OPS); focus = null; selected = null;
+      document.getElementById("drill").hidden = true;
+      document.getElementById("result").hidden = false;   // najpierw pokaż, żeby znać szerokość
+      renderChart();
+    } catch (e) { errBox.textContent = e.message; }
+  };
+  reader.onerror = () => { errBox.textContent = "Nie udało się odczytać pliku."; };
+  reader.readAsArrayBuffer(file);
+}
+
+const chart = document.getElementById("chart"), tip = document.getElementById("tip");
+chart.addEventListener("click", e => { const t = e.target.closest(".seg"); if (t) showDrill(t.dataset.m, t.dataset.s); });
+chart.addEventListener("keydown", e => {
+  const t = e.target.closest(".seg");
+  if (t && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); showDrill(t.dataset.m, t.dataset.s); }
+});
+chart.addEventListener("mousemove", e => {
+  const t = e.target.closest(".seg");
+  if (!t) { tip.hidden = true; return; }
+  const box = chart.parentElement.getBoundingClientRect();
+  tip.textContent = `${t.dataset.s} · ${monthName(t.dataset.m)}: ${fmt(DATA.value[t.dataset.m][t.dataset.s])}`;
+  tip.style.left = `${e.clientX - box.left}px`; tip.style.top = `${e.clientY - box.top}px`; tip.hidden = false;
+});
+chart.addEventListener("mouseleave", () => { tip.hidden = true; });
+let resizeTimer;
+addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => DATA && renderChart(), 150); });
+document.getElementById("legend").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  focus = focus === b.dataset.s ? null : b.dataset.s; renderChart();
+});
+const input = document.getElementById("file");
+input.addEventListener("change", () => input.files[0] && handle(input.files[0]));
+const drop = document.querySelector(".drop");
+drop.addEventListener("dragover", e => e.preventDefault());
+drop.addEventListener("drop", e => { e.preventDefault(); e.dataTransfer.files[0] && handle(e.dataTransfer.files[0]); });
+// Na GitHub Pages: przycisk wczytuje fikcyjny wyciąg z folderu dane/.
+document.getElementById("sampleBtn").addEventListener("click", async () => {
+  try {
+    const res = await fetch("../dane/FIKCYJNE_historia_konta_2026-07_do_2026-09.csv");
+    if (!res.ok) throw new Error();
+    handle(new File([await res.arrayBuffer()], "FIKCYJNE_historia_konta_2026-07_do_2026-09.csv"));
+  } catch {
+    document.getElementById("error").textContent = "Nie udało się pobrać przykładowych danych. Wybierz plik CSV ręcznie.";
+  }
+});
+</script>
+</body>
+</html>
