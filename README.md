@@ -22,6 +22,7 @@ Aplikację budowałem krok po kroku z Claude. Każdy krok to osobna strona w fol
 | 2 | [Kategorie](https://konrados1980.github.io/sprawdz-wydatki/kroki/krok2_kategorie.html) | Rozpoznaje kategorię po opisie | Rodzaj (czy to wydatek?) ≠ kategoria (na co?). Reguły porównują litery, nie znaczenie. Nie zgadujemy, oznaczamy „do wyjaśnienia” |
 | 3 | [Wykres](https://konrados1980.github.io/sprawdz-wydatki/kroki/krok3_wykres.html) | Wydatki miesiąc po miesiącu ze sprawdzaniem sumy | Sumę wykresu liczymy drugi raz, niezależnie, z listy transakcji |
 | 4 | [Aplikacja](https://konrados1980.github.io/sprawdz-wydatki/) | Wszystko razem plus pytania do AI | Aplikacja liczy, AI tłumaczy. Każda kwota w odpowiedzi AI jest sprawdzana z danymi |
+| 5 | [Aplikacja](https://konrados1980.github.io/sprawdz-wydatki/) | Archiwum pytań i pobieranie go do pliku `.md` | Gdzie trzymać dane: w przeglądarce, na serwerze czy w pliku. Archiwum zapisuje też wynik sprawdzania liczb |
 
 ### Pułapki ukryte w danych
 
@@ -42,6 +43,10 @@ Wydatki netto: **4 782,12** (lipiec) → **4 895,16** (sierpień) → **5 280,16
 ## Pytania do AI
 
 Część „Zapytaj AI” działa, gdy aplikacja jest otwarta w Claude, bo pytania idą przez konto Claude osoby, która ją otwiera. Na GitHub Pages ta część jest wyłączona, ale przycisk „Kopiuj dane” kopiuje gotowe polecenie z danymi, które można wkleić do dowolnego czatu z AI.
+
+### Archiwum pytań
+
+W Claude każde pytanie, odpowiedź AI i wynik sprawdzania liczb zapisują się w archiwum razem z aplikacją, więc są widoczne po ponownym otwarciu i na innych urządzeniach. Przycisk „Pobierz archiwum (.md)” zapisuje całą historię do pliku Markdown, który można dodać do tego repozytorium. Na GitHub Pages archiwum jest wyłączone razem z pytaniami do AI.
 
 ## Dane i generator
 

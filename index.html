@@ -94,6 +94,13 @@ mark.num-bad { background: var(--warn-bg); color: inherit; border-bottom: 2px so
 .verify { font-size: .85rem; margin: .5rem 0 0; padding: .45rem .7rem; border-left: 3px solid var(--ok); background: var(--bg); }
 .verify.warn { border-color: var(--warn); }
 .verify.err { border-color: var(--bad); }
+.arch-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; }
+.arch-head h2 { margin: 0; }
+.arch { border-top: 1px solid var(--line); padding-top: 1rem; margin-top: 1rem; }
+.arch .meta { color: var(--muted); font-size: .8rem; margin: 0 0 .25rem; }
+.arch .q { font-weight: 600; margin: 0 0 .4rem; }
+.arch .a { white-space: pre-wrap; margin: 0; max-width: 70ch; }
+.saved { color: var(--muted); font-size: .85rem; margin: .4rem 0 0; }
 pre.data { white-space: pre-wrap; font-size: .8rem; max-height: 50vh; overflow: auto; background: var(--bg); padding: .75rem; margin: .75rem 0 0; }
 </style>
 </head>
@@ -157,6 +164,16 @@ pre.data { white-space: pre-wrap; font-size: .8rem; max-height: 50vh; overflow: 
         <div class="table-wrap" style="margin-top:.75rem"><table id="dataTable"></table></div>
       </details>
     </div>
+  </section>
+
+  <section class="panel" id="archivePanel" hidden>
+    <div class="arch-head">
+      <h2>Archiwum pytań</h2>
+      <button type="button" class="btn" id="downloadBtn" hidden>Pobierz archiwum (.md)</button>
+    </div>
+    <p class="note" id="archiveNote" style="margin:.4rem 0 0"></p>
+    <p class="verify err" id="archiveError" hidden></p>
+    <div id="archiveList"></div>
   </section>
 </main>
 
@@ -435,17 +452,102 @@ function verifyNumbers(answer) {
   const bad = found.filter(n => !allowed.has(normNum(n)));
   return { found: found.length, bad: [...new Set(bad)], allowed };
 }
-function renderAnswer(text, allowed) {
-  const clean = text.replace(/\*\*(.+?)\*\*/g, "$1").replace(/^#+\s*/gm, "");
-  if (!allowed) return esc(clean);
+// isOk: funkcja mówiąca, czy dana kwota jest w danych (brak = bez podświetlania).
+function renderAnswer(text, isOk) {
+  const clean = String(text).replace(/\*\*(.+?)\*\*/g, "$1").replace(/^#+\s*/gm, "");
+  if (!isOk) return esc(clean);
   let out = "", last = 0;
   for (const m of clean.matchAll(NUM_RE)) {
     out += esc(clean.slice(last, m.index));
-    out += `<mark class="${allowed.has(normNum(m[0])) ? "num-ok" : "num-bad"}">${esc(m[0])}</mark>`;
+    out += `<mark class="${isOk(m[0]) ? "num-ok" : "num-bad"}">${esc(m[0])}</mark>`;
     last = m.index + m[0].length;
   }
   return out + esc(clean.slice(last));
 }
+function checkSummary(found, bad, truncated) {
+  let s = !found ? "W odpowiedzi nie ma kwot do sprawdzenia."
+    : !bad.length ? `Sprawdzono ${found} kwot: wszystkie występują w danych.`
+    : `Uwaga: ${bad.join(", ")} nie występuje w danych. AI mogło to policzyć samo albo się pomylić. Sprawdź na wykresie.`;
+  return truncated ? s + " Odpowiedź została ucięta." : s;
+}
+
+// ---------- KROK 5: archiwum pytań ----------
+// Z dostępem do bazy (w Claude) archiwum zapisuje się razem z aplikacją.
+// Bez niej (np. GitHub Pages) trzyma tylko pytania z tej wizyty.
+let ARCHIVE = [], archiveDb = null, downloadsApi = null, userId = null, CURRENT = null;
+const use = name => window.claude?.use ? window.claude.use(name).catch(() => null) : Promise.resolve(null);
+const fmtTime = iso => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" }); };
+
+Promise.all([use("db"), use("downloads"), use("user")]).then(async ([db, dl, user]) => {
+  downloadsApi = dl;
+  userId = user ? await user.id() : null;
+  if (db) {
+    archiveDb = db;
+    db.collection("archiwum").orderBy("czas", "desc").limit(500).onSnapshot(
+      snap => { ARCHIVE = snap.docs.map(d => ({ id: d.id, ...d.data() })); renderArchive(); },
+      () => { archiveDb = null; showArchiveError("Archiwum jest niedostępne w tym widoku. Nowe pytania zapiszą się tylko do odświeżenia strony."); renderArchive(); });
+  }
+  renderArchive();
+});
+
+function showArchiveError(msg) {
+  const el = document.getElementById("archiveError");
+  el.textContent = msg; el.hidden = !msg;
+}
+
+function renderArchive() {
+  const panel = document.getElementById("archivePanel");
+  panel.hidden = !archiveDb && !ARCHIVE.length;
+  document.getElementById("downloadBtn").hidden = !ARCHIVE.length || !downloadsApi;
+  document.getElementById("archiveNote").textContent = archiveDb
+    ? (ARCHIVE.length ? `Zapisane pytania: ${ARCHIVE.length}, najnowsze na górze. Archiwum jest przechowywane razem z aplikacją.` : "Archiwum jest puste. Zadaj pierwsze pytanie powyżej, a zapisze się tutaj.")
+    : "Pytania z tej wizyty. Bez zapisu na serwerze znikną po odświeżeniu strony, więc pobierz je do pliku.";
+  document.getElementById("archiveList").innerHTML = ARCHIVE.map(e => {
+    const bad = new Set((Array.isArray(e.niezgodne) ? e.niezgodne : []).map(x => normNum(String(x))));
+    const warn = bad.size > 0;
+    return `<article class="arch">
+      <p class="meta">${esc(fmtTime(e.czas))}, plik ${esc(String(e.plik ?? ""))} (${esc(String(e.okres ?? ""))})</p>
+      <p class="q">${esc(String(e.pytanie ?? ""))}</p>
+      <p class="a">${renderAnswer(String(e.odpowiedz ?? ""), n => !bad.has(normNum(n)))}</p>
+      <p class="verify${warn ? " warn" : ""}">${esc(String(e.sprawdzenie ?? ""))}</p>
+    </article>`;
+  }).join("");
+}
+
+async function saveToArchive(entry) {
+  if (!archiveDb) { ARCHIVE.unshift({ id: "lokalny-" + Date.now(), ...entry }); renderArchive(); return "local"; }
+  // Ta sama odpowiedź z pamięci podręcznej (to samo pytanie w ciągu 5 min) nie tworzy duplikatu.
+  if (ARCHIVE.some(a => a.pytanie === entry.pytanie && a.plik === entry.plik && a.odpowiedz === entry.odpowiedz)) return "dup";
+  try { await archiveDb.collection("archiwum").add(entry); showArchiveError(""); return "ok"; }
+  catch (e) {
+    showArchiveError(e?.code === "quota_exceeded"
+      ? "Archiwum jest pełne. Pobierz je do pliku, a potem poproś Claude o wyczyszczenie."
+      : "Nie udało się zapisać tego pytania w archiwum. Odpowiedź jest widoczna powyżej.");
+    return "err";
+  }
+}
+
+function archiveToMarkdown() {
+  const L = ["# Archiwum pytań – Sprawdź, na co wydajesz", "",
+    `Dane FIKCYJNE. Wyeksportowano ${fmtTime(new Date().toISOString())}. Pytań: ${ARCHIVE.length}, od najstarszego.`, ""];
+  [...ARCHIVE].reverse().forEach((e, i) => {
+    L.push(`## ${i + 1}. ${String(e.pytanie ?? "")}`, "",
+      `*${fmtTime(e.czas)}, plik ${String(e.plik ?? "")} (${String(e.okres ?? "")}, operacji: ${e.operacji ?? "?"})*`, "",
+      String(e.odpowiedz ?? ""), "", `> **Sprawdzenie liczb:** ${String(e.sprawdzenie ?? "")}`, "");
+  });
+  return L.join("\n");
+}
+
+document.getElementById("downloadBtn").addEventListener("click", async () => {
+  if (!downloadsApi || !ARCHIVE.length) return;
+  const day = new Date().toISOString().slice(0, 10);
+  try { await downloadsApi.save({ filename: `archiwum-pytan-${day}.md`, data: archiveToMarkdown() }); showArchiveError(""); }
+  catch (e) {
+    if (e?.code === "declined") return;
+    if (e?.code === "rate_limited") showArchiveError("Okno zapisu jest już otwarte albo było ich ostatnio za dużo. Spróbuj za chwilę.");
+    else { showArchiveError("Pobieranie nie jest dostępne w tym widoku."); if (["unavailable", "not_granted", "capability_disabled", "capability_removed"].includes(e?.code)) { downloadsApi = null; renderArchive(); } }
+  }
+});
 
 const ERROR_COPY = {
   not_granted: "Nie zezwolono tej stronie na pytania do Claude. Pytania do AI są wyłączone w tym widoku.",
@@ -480,7 +582,7 @@ async function ask(question) {
   box.className = "qa";
   box.innerHTML = `<p class="q"></p><p class="a pending">Myślę…</p><p class="verify" hidden></p>`;
   box.querySelector(".q").textContent = question;
-  document.getElementById("answers").prepend(box);
+  document.getElementById("answers").replaceChildren(box);   // tu tylko bieżąca odpowiedź, historia jest w archiwum
   const a = box.querySelector(".a"), v = box.querySelector(".verify");
   const askBtn = document.getElementById("askBtn"), stopBtn = document.getElementById("stopBtn");
   askBtn.disabled = true; stopBtn.hidden = false;
@@ -490,12 +592,23 @@ async function ask(question) {
       onText: ({ text }) => { a.classList.remove("pending"); a.innerHTML = renderAnswer(text); },
     });
     const check = verifyNumbers(text);
-    a.innerHTML = renderAnswer(text, check.allowed);
+    const summary = checkSummary(check.found, check.bad, truncated);
+    a.innerHTML = renderAnswer(text, n => check.allowed.has(normNum(n)));
     v.hidden = false;
-    if (!check.found) { v.className = "verify"; v.textContent = "W odpowiedzi nie ma kwot do sprawdzenia."; }
-    else if (!check.bad.length) { v.className = "verify"; v.textContent = `Sprawdzono ${check.found} kwot: wszystkie występują w danych.`; }
-    else { v.className = "verify warn"; v.textContent = `Uwaga: ${check.bad.join(", ")} nie występuje w danych. AI mogło to policzyć samo albo się pomylić. Sprawdź na wykresie.`; }
-    if (truncated) v.textContent += " Odpowiedź została ucięta.";
+    v.className = "verify" + (check.bad.length ? " warn" : "");
+    v.textContent = summary;
+    const saved = document.createElement("p");
+    saved.className = "saved";
+    box.append(saved);
+    const res = await saveToArchive({
+      pytanie: question, odpowiedz: text, sprawdzenie: summary,
+      kwot: check.found, niezgodne: check.bad, ucieta: !!truncated,
+      plik: CURRENT?.plik ?? "", okres: CURRENT?.okres ?? "", operacji: CURRENT?.operacji ?? 0,
+      czas: new Date().toISOString(), autor: userId,
+    });
+    saved.textContent = res === "ok" ? "Zapisano w archiwum na dole strony."
+      : res === "dup" ? "Ta sama odpowiedź jest już w archiwum."
+      : res === "local" ? "Dodano do listy pytań na dole strony (tylko do odświeżenia)." : "";
   } catch (e) {
     a.classList.remove("pending");
     if (e?.code === "cancelled") { a.innerHTML = renderAnswer(e.text || "Zatrzymano."); }
@@ -533,6 +646,7 @@ function handle(file) {
       DATA = buildData(OPS); focus = null; selected = null;
       document.getElementById("drill").hidden = true;
       DATA_TEXT = buildDataForAi(OPS);
+      CURRENT = { plik: file.name, okres: `${OPS[OPS.length - 1].date} – ${OPS[0].date}`, operacji: OPS.length };
       document.getElementById("dataForAi").textContent = DATA_TEXT;
       document.getElementById("answers").innerHTML = "";
       document.getElementById("result").hidden = false;   // najpierw pokaż, żeby znać szerokość
