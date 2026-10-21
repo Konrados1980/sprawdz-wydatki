@@ -46,7 +46,9 @@ Część „Zapytaj AI” działa, gdy aplikacja jest otwarta w Claude, bo pytan
 
 ### Archiwum pytań
 
-W Claude każde pytanie, odpowiedź AI i wynik sprawdzania liczb zapisują się w archiwum razem z aplikacją, więc są widoczne po ponownym otwarciu i na innych urządzeniach. Przycisk „Pobierz archiwum (.md)” zapisuje całą historię do pliku Markdown, który można dodać do tego repozytorium. Na GitHub Pages archiwum jest wyłączone razem z pytaniami do AI.
+W Claude każde pytanie, odpowiedź AI i wynik sprawdzania liczb zapisują się w archiwum razem z aplikacją, więc są widoczne po ponownym otwarciu i na innych urządzeniach. Przycisk „Pobierz archiwum (.md)” zapisuje całą historię do pliku Markdown, który można dodać do tego repozytorium.
+
+**[Odpowiedzi AI na pytania z zadania](archiwum/odpowiedzi-ai.md)**: 4 pytania, 52 kwoty, wszystkie zgodne z danymi. Każda odpowiedź jest dodatkowo sprawdzona ręcznie z kluczem, bo automat sprawdza tylko, czy liczba występuje w danych, a nie czy jest użyta we właściwym miejscu. Na GitHub Pages archiwum jest wyłączone razem z pytaniami do AI.
 
 ## Dane i generator
 
